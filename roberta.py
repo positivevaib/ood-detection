@@ -30,6 +30,8 @@ task_to_keys = {
     "sst2": ("sentence", None),
 }
 
+in_glue = ['mnli', 'sst2']
+
 logger = logging.getLogger(__name__)
 
 
@@ -164,7 +166,10 @@ def main():
     # download the dataset.
     if data_args.task_name is not None:
         # Downloading and loading a dataset from the hub.
-        datasets = load_dataset(data_args.task_name)
+        if data_args.task_name in in_glue:
+            datasets = load_dataset("glue", data_args.task_name)
+        else:
+            datasets = load_dataset(data_args.task_name)
     elif data_args.train_file.endswith(".csv"):
         # Loading a dataset from local csv files
         datasets = load_dataset(
