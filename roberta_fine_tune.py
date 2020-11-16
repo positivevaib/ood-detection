@@ -1,6 +1,8 @@
 # import dependencies
 import argparse
+import os
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,14 +11,24 @@ from tqdm import tqdm, trange
 
 import transformers
 from transformers import (RobertaConfig, RobertaTokenizer, RobertaForSequenceClassification)
+from transformers import set_seed
 
 import datasets
 from datasets import load_dataset
 
 
 def process_dataset(dataset, split, task_name, tokenizer, padding, max_length, batch_size, truncation=True):
+    eval_split_keys = {
+                        'imdb': 'test',
+                        'sst2': 'validation'
+            }
+    if split == 'eval':
+        split = eval_split_keys[task_name]
+
     tasks_to_keys = {
+                    #'counterfactual-imdb': ('text', None),
                     'imdb': ('text', None),
+                    'sst2': ('sentence', None)
             }
 
     sentence1_key, sentence2_key = tasks_to_keys[task_name]
@@ -46,15 +58,24 @@ def main():
     parser.add_argument('--num_epochs', type=int, default=3, help='Number of epochs to fine-tune')
     parser.add_argument('--max_seq_length', type=int, default=128, help='Maximum sequence length of the inputs')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
+    parser.add_argument('--learning_rate', type=float, default=1e-5, help='Adam learning rate')
+    parser.add_argument('--output_dir', type=str, default='output', help='Directory to save fine-tuned models')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for initialization')
 
     args = parser.parse_args()
 
     # set device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
+    # glue datasets
+    glue = ['sst2']
+
     # load dataset
-    dataset = load_dataset(args.task_name)
+    dataset = load_dataset(args.task_name) if args.task_name not in glue else load_dataset('glue', args.task_name)
     num_labels = dataset['train'].features['label'].num_classes
+
+    # set seed
+    set_seed(args.seed)
 
     # load RoBERTa tokenizer and model
     config = RobertaConfig.from_pretrained(args.roberta_version, num_labels=num_labels, finetuning_task=args.task_name, cache_dir=args.cache_dir)
@@ -64,10 +85,10 @@ def main():
     # process dataset
     padding = 'max_length'
     train_loader = process_dataset(dataset, 'train', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
-    test_loader = process_dataset(dataset, 'test', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
+    eval_loader = process_dataset(dataset, 'eval', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
 
     # instantiate optimizer and criterion
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
     criterion = nn.CrossEntropyLoss()
 
     # fine-tune model 
@@ -94,6 +115,44 @@ def main():
             tr_loss += loss.item()
         losses.append(tr_loss/(step+1))
         print('train loss: {}'.format(tr_loss/(step+1)))
+
+    # save model and tokenizer
+    model.save_pretrained(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
+
+    # evaluate model
+    preds = None
+    gold_labels = None
+
+    eval_loss = 0
+    step = None
+    eval_iterator = tqdm(eval_loader, desc='Evaluating')
+    for step, batch in enumerate(eval_iterator):
+        model.eval()
+        batch = tuple(t.to(device) for t in batch)
+
+        with torch.no_grad():
+            inputs = {'input_ids': batch [0].to(device), 'attention_mask': batch[1].to(device), 'labels': batch[2].to(device)}
+            labels = batch[2].to(device)
+
+            out = model(**inputs)[1].double().to(device)
+            loss = criterion(out, labels)
+
+            if preds is None:
+                preds = out.detach().cpu().numpy()
+                gold_labels = labels.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, out.detach().cpu().numpy(), axis=0)
+                gold_labels = np.append(gold_labels, labels.detach().cpu().numpy(), axis=0)
+
+            eval_loss += loss.item()
+    eval_loss /= (step+1)
+    print('eval loss: {}'.format(eval_loss))
+
+    # compute accuracy
+    preds = np.argmax(preds, axis=1)
+    accuracy = np.sum(preds == gold_labels)/len(preds)
+    print('eval accuracy: {}'.format(accuracy))
 
 if __name__ == '__main__':
     main()
