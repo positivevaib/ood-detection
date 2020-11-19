@@ -3,6 +3,7 @@ import argparse
 import os
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,7 +18,7 @@ import datasets
 from datasets import load_dataset
 
 
-def process_dataset(dataset, split, task_name, tokenizer, padding, max_length, batch_size, truncation=True):
+def process_hf_dataset(dataset, split, task_name, tokenizer, padding, max_length, batch_size, truncation=True):
     eval_split_keys = {
                         'imdb': 'test',
                         'sst2': 'validation'
@@ -26,7 +27,6 @@ def process_dataset(dataset, split, task_name, tokenizer, padding, max_length, b
         split = eval_split_keys[task_name]
 
     tasks_to_keys = {
-                    #'counterfactual-imdb': ('text', None),
                     'imdb': ('text', None),
                     'sst2': ('sentence', None)
             }
@@ -36,6 +36,28 @@ def process_dataset(dataset, split, task_name, tokenizer, padding, max_length, b
 
     features = tokenizer(*args, padding=padding, max_length=max_length, truncation=truncation)
     labels = dataset[split]['label']
+
+    all_input_ids = torch.tensor([f for f in features.input_ids], dtype=torch.long)
+    all_attention_mask = torch.tensor([f for f in features.attention_mask], dtype=torch.long)
+    all_labels = torch.tensor([f for f in labels], dtype=torch.long)
+
+    tensor_dataset = TensorDataset(all_input_ids, all_attention_mask, all_labels) 
+    sampler = RandomSampler(tensor_dataset)
+    dataloader = DataLoader(tensor_dataset, sampler=sampler, batch_size=batch_size)
+
+    return dataloader
+
+
+def process_custom_dataset(dataset, task_name, tokenizer, padding, max_length, batch_size, truncation=True):
+    tasks_to_keys = {
+                        'counterfactual-imdb': ('Text', None, 'Sentiment'),
+            }
+
+    sentence1_key, sentence2_key, labels_key = tasks_to_keys[task_name]
+    args = ((dataset[sentence1_key].tolist(),) if sentence2_key is None else (dataset[sentence1_key].tolist(), dataset[sentence2_key].tolist()))
+
+    features = tokenizer(*args, padding=padding, max_length=max_length, truncation=truncation)
+    labels = pd.Categorical(dataset[labels_key], ordered=True).codes.tolist()
 
     all_input_ids = torch.tensor([f for f in features.input_ids], dtype=torch.long)
     all_attention_mask = torch.tensor([f for f in features.attention_mask], dtype=torch.long)
@@ -61,37 +83,61 @@ def main():
     parser.add_argument('--learning_rate', type=float, default=1e-5, help='Adam learning rate')
     parser.add_argument('--output_dir', type=str, default='output', help='Directory to save fine-tuned models')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for initialization')
+    parser.add_argument('--file_format', type=str, default='.tsv', help='Data file format for tasks not available for download at HuggingFace Datasets')
 
     args = parser.parse_args()
 
     # set device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    # glue datasets
+    # huggingface and glue datasets
+    hf_datasets = ['imdb', 'sst2']
     glue = ['sst2']
 
+    # custom dataset label keys
+    label_keys = {
+                    'counterfactual-imdb': 'Sentiment',
+            }
+
     # load dataset
-    dataset = load_dataset(args.task_name) if args.task_name not in glue else load_dataset('glue', args.task_name)
-    num_labels = dataset['train'].features['label'].num_classes
+    print('Loading dataset')
+
+    if args.task_name in hf_datasets:
+        dataset = load_dataset(args.task_name) if args.task_name not in glue else load_dataset('glue', args.task_name)
+        num_labels = dataset['train'].features['label'].num_classes
+    elif args.file_format == '.tsv':
+        train_df = pd.read_table(os.path.join(os.getcwd(), args.task_name, ('train' + args.file_format)))
+        eval_df = pd.read_table(os.path.join(os.getcwd(), args.task_name, ('eval' + args.file_format)))
+        num_labels = len(np.unique(pd.Categorical(train_df[label_keys[args.task_name]], ordered=True)))
 
     # set seed
     set_seed(args.seed)
 
     # load RoBERTa tokenizer and model
-    config = RobertaConfig.from_pretrained(args.roberta_version, num_labels=num_labels, finetuning_task=args.task_name, cache_dir=args.cache_dir)
+    print('Loading RoBERTa tokenizer and model')
+
+    config = RobertaConfig.from_pretrained(args.roberta_version, num_labels=num_labels, cache_dir=args.cache_dir)
     tokenizer = RobertaTokenizer.from_pretrained(args.roberta_version, cache_dir=args.cache_dir)
     model = RobertaForSequenceClassification.from_pretrained(args.roberta_version, config=config, cache_dir=args.cache_dir).to(device)
 
     # process dataset
+    print('Processing dataset')
+
     padding = 'max_length'
-    train_loader = process_dataset(dataset, 'train', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
-    eval_loader = process_dataset(dataset, 'eval', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
+    if args.task_name in hf_datasets:
+        train_loader = process_hf_dataset(dataset, 'train', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
+        eval_loader = process_hf_dataset(dataset, 'eval', args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
+    else:
+        train_loader = process_custom_dataset(train_df, args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
+        eval_loader = process_custom_dataset(eval_df, args.task_name, tokenizer, padding, args.max_seq_length, args.batch_size)
 
     # instantiate optimizer and criterion
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
     criterion = nn.CrossEntropyLoss()
 
     # fine-tune model 
+    print('Fine-tuning model')
+
     losses = []
     train_iterator = trange(int(args.num_epochs), desc='Epoch')
     for _ in train_iterator:
@@ -117,10 +163,14 @@ def main():
         print('train loss: {}'.format(tr_loss/(step+1)))
 
     # save model and tokenizer
+    print('Saving model and tokenizer')
+
     model.save_pretrained(args.output_dir)
     tokenizer.save_pretrained(args.output_dir)
 
     # evaluate model
+    print('Evaluating model')
+
     preds = None
     gold_labels = None
 
