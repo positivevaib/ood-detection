@@ -42,6 +42,13 @@ if __name__ == '__main__':
                     'counterfactual-imdb': 'Sentiment',
             }
 
+    # training split keys
+    train_split_keys = {
+                        'imdb': 'train',
+                        'sst2': 'train',
+                        'counterfactual-imdb': 'train'
+            }
+
     # evaluation split keys
     eval_split_keys = {
                         'imdb': 'test',
@@ -49,22 +56,37 @@ if __name__ == '__main__':
                         'counterfactual-imdb': 'dev'
             }
 
+    # test split keys
+    test_split_keys = {
+                        'imdb': 'unsupervised',
+                        'sst2': 'test',
+                        'counterfactual-imdb': 'test'
+            }
+
     # dataset feature keys
     datasets_to_keys = {
                     'imdb': ('text', None),
                     'sst2': ('sentence', None),
-                    'counterfactual-imdb': 'Text'
+                    'counterfactual-imdb': ('Text', None)
             }
 
     # load dataset
     print('Loading dataset')
 
     if args.dataset in hf_datasets:
-        dataset = load_dataset(args.dataset, split=eval_split_keys[args.dataset]) if args.dataset not in glue else load_dataset('glue', args.dataset, split=eval_split_keys[args.dataset])
+        dataset = load_dataset(args.dataset) if args.dataset not in glue else load_dataset('glue', args.dataset)
+
+        if args.split == 'train':
+            dataset = dataset[train_split_keys[args.dataset]]
+        elif args.split == 'eval':
+            dataset = dataset[eval_split_keys[args.dataset]]
+        elif args.split == 'test':
+            dataset = dataset[test_split_keys[args.dataset]]
+
     elif args.file_format == '.tsv':
-        train_df = pd.read_table(os.path.join(os.getcwd(), args.dataset, ('train' + args.file_format)))
+        train_df = pd.read_table(os.path.join(os.getcwd(), args.dataset, (train_split_keys[args.dataset] + args.file_format)))
         eval_df = pd.read_table(os.path.join(os.getcwd(), args.dataset, (eval_split_keys[args.dataset] + args.file_format)))
-        test_df = pd.read_table(os.path.join(os.getcwd(), args.dataset, ('test' + args.file_format)))
+        test_df = pd.read_table(os.path.join(os.getcwd(), args.dataset, (test_split_keys[args.dataset] + args.file_format)))
         num_labels = len(np.unique(pd.Categorical(train_df[label_keys[args.dataset]], ordered=True)))
 
         if args.split == 'train':
@@ -84,7 +106,7 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(args.load_dir)
     model = AutoModelForSequenceClassification.from_pretrained(args.load_dir) 
 
-    id_all_encodings = [encode(tokenizer, text) for text in dataset[datasets_to_keys[args.dataset]]]
+    id_all_encodings = [encode(tokenizer, text) for text in dataset[datasets_to_keys[args.dataset][0]]]
     msp = process_msp(id_all_encodings, model)
     np.save(os.path.join(os.getcwd(), args.output_dir, args.roberta_version + '_' + args.dataset + '_msp.npy'), msp)
 
