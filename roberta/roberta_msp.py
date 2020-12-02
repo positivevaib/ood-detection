@@ -103,10 +103,15 @@ if __name__ == '__main__':
         split_idx = int(0.2*len(sentences))
         dataset = {datasets_to_keys[args.dataset][0]: sentences[split_idx:], 'label': labels[split_idx:]}
 
+    if torch.cuda.is_available():
+        device = 'cuda'
+    else:
+        device = 'cpu'
+
     tokenizer = AutoTokenizer.from_pretrained(args.load_dir)
-    model = AutoModelForSequenceClassification.from_pretrained(args.load_dir) 
+    model = AutoModelForSequenceClassification.from_pretrained(args.load_dir).to(device) 
 
     id_all_encodings = [encode(tokenizer, text) for text in dataset[datasets_to_keys[args.dataset][0]]]
-    msp = process_msp(id_all_encodings, model)
+    msp = process_msp(id_all_encodings, model, device)
     np.save(os.path.join(os.getcwd(), args.output_dir, args.roberta_version + '_' + args.dataset + '_msp.npy'), msp)
 
