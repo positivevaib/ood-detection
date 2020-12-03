@@ -29,12 +29,13 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42, help='Random seed for initialization')
     parser.add_argument('--file_format', type=str, default='.tsv', help='Data file format for dataset not available for download at HuggingFace Datasets')
     parser.add_argument('--in_domain', action='store_true', help='Dataset is in-domain')
+    parser.add_argument('--entailment', action='store_true', help='Dataset originally intended for an entailment task')
     parser.add_argument('--split', type=str, default='eval', help='Dataset split to compute maximum softmax probability on')
 
     args = parser.parse_args()
 
     # huggingface and glue datasets
-    hf_datasets = ['imdb', 'sst2']
+    hf_datasets = ['imdb', 'snli', 'sst2']
     glue = ['sst2']
 
     # custom dataset label keys
@@ -45,6 +46,7 @@ if __name__ == '__main__':
     # training split keys
     train_split_keys = {
                         'imdb': 'train',
+                        'snli': 'train',
                         'sst2': 'train',
                         'counterfactual-imdb': 'train'
             }
@@ -52,6 +54,7 @@ if __name__ == '__main__':
     # evaluation split keys
     eval_split_keys = {
                         'imdb': 'test',
+                        'snli': 'validation',
                         'sst2': 'validation',
                         'counterfactual-imdb': 'dev'
             }
@@ -59,6 +62,7 @@ if __name__ == '__main__':
     # test split keys
     test_split_keys = {
                         'imdb': 'unsupervised',
+                        'snli': 'test',
                         'sst2': 'test',
                         'counterfactual-imdb': 'test'
             }
@@ -66,6 +70,7 @@ if __name__ == '__main__':
     # dataset feature keys
     datasets_to_keys = {
                     'imdb': ('text', None),
+                    'snli': ('premise', 'hypothesis'),
                     'sst2': ('sentence', None),
                     'counterfactual-imdb': ('Text', None)
             }
@@ -103,6 +108,12 @@ if __name__ == '__main__':
         split_idx = int(0.2*len(sentences))
         dataset = {datasets_to_keys[args.dataset][0]: sentences[split_idx:], 'label': labels[split_idx:]}
 
+    if args.entailment:
+        sentences = [sentence1 + ' ' + sentence2 for sentence1, sentence2 in zip(dataset[datasets_to_keys[args.dataset][0]], dataset[datasets_to_keys[args.dataset][1]])]
+        labels = dataset['label']
+        dataset = {datasets_to_keys[args.dataset][0]: sentences, 'label': labels}
+            
+
     if torch.cuda.is_available():
         device = 'cuda'
     else:
@@ -110,6 +121,9 @@ if __name__ == '__main__':
 
     tokenizer = AutoTokenizer.from_pretrained(args.load_dir)
     model = AutoModelForSequenceClassification.from_pretrained(args.load_dir).to(device) 
+
+    # output sample data
+    print(dataset[datasets_to_keys[args.dataset][0]][0])
 
     id_all_encodings = [encode(tokenizer, text) for text in dataset[datasets_to_keys[args.dataset][0]]]
     msp = process_msp(id_all_encodings, model, device)
