@@ -35,8 +35,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # huggingface and glue datasets
-    hf_datasets = ['imdb', 'snli', 'sst2']
-    glue = ['sst2']
+    hf_datasets = ['imdb', 'rte', 'snli', 'sst2']
+    glue = ['rte', 'sst2']
 
     # custom dataset label keys
     label_keys = {
@@ -46,6 +46,7 @@ if __name__ == '__main__':
     # training split keys
     train_split_keys = {
                         'imdb': 'train',
+                        'rte': 'train',
                         'snli': 'train',
                         'sst2': 'train',
                         'counterfactual-imdb': 'train'
@@ -54,6 +55,7 @@ if __name__ == '__main__':
     # evaluation split keys
     eval_split_keys = {
                         'imdb': 'test',
+                        'rte': 'validation',
                         'snli': 'validation',
                         'sst2': 'validation',
                         'counterfactual-imdb': 'dev'
@@ -62,6 +64,7 @@ if __name__ == '__main__':
     # test split keys
     test_split_keys = {
                         'imdb': 'unsupervised',
+                        'rte': 'test',
                         'snli': 'test',
                         'sst2': 'test',
                         'counterfactual-imdb': 'test'
@@ -70,6 +73,7 @@ if __name__ == '__main__':
     # dataset feature keys
     datasets_to_keys = {
                     'imdb': ('text', None),
+                    'rte': ('sentence1', 'sentence2'),
                     'snli': ('premise', 'hypothesis'),
                     'sst2': ('sentence', None),
                     'counterfactual-imdb': ('Text', None)
