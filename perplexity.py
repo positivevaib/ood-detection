@@ -9,9 +9,12 @@ import os
 import pickle
 import utils
 
-SAVE_PATH = 'output/gpt2_plain'
+SAVE_PATH = 'output/gpt2/imdb'
 if not os.path.exists(SAVE_PATH):
     os.makedirs(SAVE_PATH)
+
+LR = '5e-5'
+EPOCHS = 1
 
 def compute_all(model, all_encodings, fname, n=None):
     print("Finding perplexities")
@@ -33,10 +36,10 @@ def compute_all(model, all_encodings, fname, n=None):
     pbar.close()
 
     perplexities = np.array(perplexities)
-    np.save(f'{SAVE_PATH}/{fname}_pps.npy', perplexities)
+    np.save(f'{SAVE_PATH}/{fname}_{LR}_pps.npy', perplexities)
     print(f"\nMean: {perplexities.mean()}, Std: {perplexities.std()}")
 
-    with open(f'{SAVE_PATH}/{fname}_lls.pkl', 'wb') as fw:
+    with open(f'{SAVE_PATH}/{fname}_{LR}_lls.pkl', 'wb') as fw:
         pickle.dump(lls, fw)
 
     return perplexities
@@ -128,7 +131,10 @@ def process_counterfactual(dataset_name, model, tokenizer, device, n=None, fname
 
 if __name__ == '__main__':
     print("Loading model...")
-    model, tokenizer, device, n = setup('gpt2')
+    path = f'/scratch/ua388/nlp/ckpts/gpt2-imdb-{EPOCHS}_epochs-{LR}_lr'
+    # path = f'/scratch/ua388/nlp/ckpts/gpt2-glue_sst2-{EPOCHS}_epochs-{LR}_lr'
+    print("Loading model...", path)
+    model, tokenizer, device, n = setup(path)
     # process_dataset('imdb', model, tokenizer, device, n=3000, key='text')
     # process_dataset('yelp_polarity', model, tokenizer, device, n=3000, key='text')
 
