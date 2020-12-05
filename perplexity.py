@@ -3,9 +3,11 @@ from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelWithLMHead
 import torch
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 import os
 import pickle
+import utils
 
 SAVE_PATH = 'output/gpt2_plain'
 if not os.path.exists(SAVE_PATH):
@@ -107,11 +109,31 @@ def process_entailment(dataset_name, model, tokenizer, device, n=None, dataset_s
         fname = dataset_name
     return compute_all(model, all_encodings, fname, n)
 
+def process_counterfactual(dataset_name, model, tokenizer, device, n=None, fname=None, key='Text'):
+    print('Loading data...')
+    train_df = pd.read_table(os.path.join(os.getcwd(), 'data', dataset_name, (utils.train_split_keys[dataset_name] + '.tsv')))
+    eval_df = pd.read_table(os.path.join(os.getcwd(), 'data', dataset_name, (utils.eval_split_keys[dataset_name] + '.tsv')))
+    test_df = pd.read_table(os.path.join(os.getcwd(), 'data', dataset_name, (utils.test_split_keys[dataset_name] + '.tsv')))
+
+    num_labels = len(np.unique(pd.Categorical(train_df[utils.label_keys[dataset_name]], ordered=True)))
+    dataset = pd.concat([train_df, eval_df, test_df])
+    print(dataset)
+
+    print("Tokenizing data")
+    all_encodings = [tokenizer(text + ' <|endoftext|>', return_tensors='pt') for text in dataset[key][:n]]
+
+    if fname is None:
+        fname = dataset_name
+    return compute_all(model, all_encodings, fname, n)
+
 if __name__ == '__main__':
     print("Loading model...")
     model, tokenizer, device, n = setup('gpt2')
-    process_dataset('imdb', model, tokenizer, device, n=3000, key='text')
-    process_dataset('yelp_polarity', model, tokenizer, device, n=3000, key='text')
+    # process_dataset('imdb', model, tokenizer, device, n=3000, key='text')
+    # process_dataset('yelp_polarity', model, tokenizer, device, n=3000, key='text')
+
+    process_counterfactual('counterfactual-imdb', model, tokenizer, device, n=2)
+
     # process_dataset('sentiment140', model, tokenizer, device, n=2, key='text')
 
     # process_dataset('glue', model, tokenizer, device, configs=['sst2'], key='sentence', fname='sst2')
