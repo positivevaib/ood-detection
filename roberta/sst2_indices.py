@@ -45,6 +45,7 @@ def main():
     split_idx = int(0.2*len(sentences))
     #calculate indices of dev_data in the original dataset without the shuffle
     indices = indices[split_idx:]
+    print('Number kept', len(indices))
 
     with open('sst2_indices.txt', 'w') as indices_file:
         for index in indices:

@@ -1,3 +1,4 @@
 .ipynb_checkpoints
 .DS_Store
 dataset_analyses/datasets/*
+dataset_analyses/ngram_stats/*
