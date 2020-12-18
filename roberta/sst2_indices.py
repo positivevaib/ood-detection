@@ -43,9 +43,9 @@ def main():
 
     split_idx = int(0.2*len(sentences))
     #calculate indices of dev_data in the original dataset without the shuffle
-    indices = indices[:split_idx]
+    indices = indices[split_idx:]
 
-    with open('sst2_indices.txt', 'w+') as indices_file:
+    with open('sst2_indices.txt', 'w') as indices_file:
         for index in indices:
             indices_file.write("%s\n" % index)
 
