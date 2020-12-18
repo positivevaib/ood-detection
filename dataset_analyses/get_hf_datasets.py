@@ -90,7 +90,7 @@ if __name__ == '__main__':
             )
             print(type(val_data[datasets_to_keys[data_name][0]]), type(val_data[datasets_to_keys[data_name][0]][0]))
             split_idx = int(0.2*len(sentences))
-            data_out[('id', 'val', data_name)] = {'text': sentences[split_idx], 'label': labels[split_idx]}
+            data_out[('id', 'val', data_name)] = {'text': sentences[split_idx:], 'label': labels[split_idx:]}
 
             # training data
             # temp = load_dataset(data_name, split=train_split_keys[data_name], cache_dir=args.cache)
@@ -108,5 +108,5 @@ if __name__ == '__main__':
             data_out[(domain_key, 'val', data_name)] = {'text': val_data[datasets_to_keys[data_name][0]], 'label': val_data['label']}
 
 
-    with open(os.path.join(args.cache, 'all_data.p'), 'wb') as f:
+    with open(os.path.join(args.cache, 'hf_data.p'), 'wb') as f:
         pickle.dump(data_out, f)
