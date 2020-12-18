@@ -24,6 +24,7 @@ def main():
 
     parser.add_argument('--max_seq_length', type=int, default=128, help='Maximum sequence length of the inputs')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--cache', type=str, default=None, help='where datasets stored')
 
     args = parser.parse_args()
 
@@ -34,7 +35,7 @@ def main():
     set_seed(args.seed)
 
     # load dataset
-    dataset = load_dataset('imdb', split='test')
+    dataset = load_dataset('imdb', split='test', cache_dir=args.cache)
     orig_sentences = list(enumerate(dataset['text']))
     orig_labels    = list(enumerate(dataset['label']))
     s_sentences, s_labels = shuffle(orig_sentences, orig_labels, random_state=args.seed)
