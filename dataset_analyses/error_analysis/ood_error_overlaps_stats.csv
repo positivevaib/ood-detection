@@ -1,0 +1,24 @@
+in domain,ood,partition,mean,std
+imdb,counterfactual-imdb,common,0.0,0.0
+imdb,counterfactual-imdb,msp,0.0,0.0
+imdb,counterfactual-imdb,pps,0.0,0.0
+imdb,rte,msp,0.5287775716347145,0.20924676605075682
+imdb,rte,pps,0.647595334907365,0.12731747192710957
+imdb,snli,common,0.47480802026256586,0.23649878533960747
+imdb,snli,msp,0.33839283736689807,0.20937845062293398
+imdb,snli,pps,0.6264042735049343,0.22072357675172222
+imdb,sst2,common,0.0,0.0
+imdb,sst2,msp,0.0,0.0
+imdb,sst2,pps,0.0,0.0
+sst2,counterfactual-imdb,common,0.0,0.0
+sst2,counterfactual-imdb,msp,0.0,0.0
+sst2,counterfactual-imdb,pps,0.0,0.0
+sst2,imdb,common,0.0,0.0
+sst2,imdb,msp,0.0,0.0
+sst2,imdb,pps,0.0,0.0
+sst2,rte,common,0.4,
+sst2,rte,msp,0.5053828649982497,0.25433271900101484
+sst2,rte,pps,0.6102551678164919,0.17093881050825163
+sst2,snli,common,0.6278670675729499,0.23158155298664992
+sst2,snli,msp,0.2942791028353702,0.21110041891393108
+sst2,snli,pps,0.5772915750977023,0.23466153208674953
